@@ -12,17 +12,13 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-LAT_DEFECTO = 6.2766
-LON_DEFECTO = -75.5901
+# Coordenadas reales de Puerto Triunfo (Quebrada Doradal - Estación 18)
+LAT_DEFECTO = 5.9781
+LON_DEFECTO = -74.7291
 
 API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
-LLAVE_FECHA = "fecha"
-LLAVE_VALOR = "nivel"
-CANDIDATOS_LAT = ["lat", "latitude", "latitud"]
-CANDIDATOS_LON = ["lng", "lon", "longitude", "longitud"]
-
-st.set_page_config(page_title="Nivel de estación — CORNARE", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Estación 18 — Quebrada Doradal", page_icon="🌊", layout="wide")
 
 # ------------------------------------------------------------------
 # Funciones de consulta
@@ -58,67 +54,22 @@ def obtener_todas_las_paginas(datos_json, timeout=30):
         siguiente_url = pagina.get("next")
     return registros
 
-
-def detectar_coordenadas(datos_json):
-    if not isinstance(datos_json, dict):
-        return LAT_DEFECTO, LON_DEFECTO, False
-
-    lat = next((datos_json[k] for k in CANDIDATOS_LAT if k in datos_json), None)
-    lon = next((datos_json[k] for k in CANDIDATOS_LON if k in datos_json), None)
-
-    if lat is not None and lon is not None:
-        try:
-            return float(lat), float(lon), True
-        except (TypeError, ValueError):
-            pass
-    return LAT_DEFECTO, LON_DEFECTO, False
-
-
-def calcular_indice_calidad(df):
-    if df.empty or len(df) < 2:
-        return 0.0, 0, 0
-
-    df_idx = df.set_index("fecha")
-    frecuencia_tipica = df["fecha"].diff().dropna().mode()
-    if len(frecuencia_tipica) == 0:
-        return 0.0, 0, 0
-    frecuencia_tipica = frecuencia_tipica[0]
-
-    rango_completo = pd.date_range(start=df_idx.index.min(), end=df_idx.index.max(), freq=frecuencia_tipica)
-    esperados = len(rango_completo)
-    huecos = esperados - len(df_idx)
-    completitud = max(0.0, 1 - (huecos / esperados)) if esperados > 0 else 0.0
-
-    Q1, Q3 = df["nivel"].quantile(0.25), df["nivel"].quantile(0.75)
-    IQR = Q3 - Q1
-    lim_inf, lim_sup = Q1 - 1.5 * IQR, Q3 + 1.5 * IQR
-    es_outlier = (df["nivel"] < lim_inf) | (df["nivel"] > lim_sup) | (df["nivel"] < 0)
-    proporcion_outliers = es_outlier.mean()
-
-    indice = (completitud * 0.7 + (1 - proporcion_outliers) * 0.3) * 100
-    return round(indice, 1), int(huecos), int(es_outlier.sum())
-
-
 # ------------------------------------------------------------------
-# Sidebar — Parámetros de consulta configurados con tu estación 18
+# Sidebar
 # ------------------------------------------------------------------
-st.sidebar.header("Parámetros de tu consulta")
+st.sidebar.header("Parámetros de consulta")
 nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Y Apellido")
 codigo_estacion = st.sidebar.text_input("Código de estación", "18")
 fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-09-02")).strftime("%Y-%m-%d")
 fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-09-08")).strftime("%Y-%m-%d")
-calidad = st.sidebar.selectbox("Calidad", [1, 0], index=0, help="1 = solo datos validados")
 consultar = st.sidebar.button("🔍 Consultar", type="primary")
 
-st.title("🌊 Nivel de ríos y quebradas — CORNARE")
-st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacion} (Puerto Triunfo)**")
+st.title("🌊 Monitoreo Hidrométrico — Estación 18")
+st.caption(f"Estudiante: **{nombre_estudiante}** · Ubicación: **Quebrada Doradal (Puerto Triunfo)**")
 
-# ------------------------------------------------------------------
-# Consulta y Procesamiento
-# ------------------------------------------------------------------
 if consultar:
-    with st.spinner("Consultando la API de CORNARE..."):
-        datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
+    with st.spinner("Conectando con la red MARCO de CORNARE..."):
+        datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta)
 
     if error:
         st.error(f"❌ {error}")
@@ -126,11 +77,9 @@ if consultar:
         registros = obtener_todas_las_paginas(datos_crudos)
 
         if not registros:
-            st.warning("No hay registros para esta estación y rango de fechas.")
+            st.warning("No hay registros para este periodo.")
         else:
             df = pd.DataFrame(registros)
-            
-            # Ajuste de llaves si vienen con nombres estándar o DRF
             if "fecha" not in df.columns and "level_date" in df.columns:
                 df = df.rename(columns={"level_date": "fecha", "level": "nivel"})
 
@@ -138,47 +87,57 @@ if consultar:
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
 
-            lat, lon, coords_reales = detectar_coordenadas(datos_crudos)
-            indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
+            # Métricas avanzadas
+            nivel_max = df["nivel"].max()
+            nivel_min = df["nivel"].min()
+            nivel_prom = df["nivel"].mean()
+            
+            # Cálculo de la máxima variación en 1 hora
+            df["variacion_1h"] = df["nivel"].diff(60).abs()
+            max_var = df["variacion_1h"].max()
 
-            # --- Métricas principales ---
+            # --- Panel de Métricas ---
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Lecturas procesadas", len(df))
-            col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f} cm")
-            col3.metric("Índice de calidad", f"{indice_calidad} / 100")
-            col4.metric("Outliers detectados", n_outliers)
+            col1.metric("Lecturas procesadas", f"{len(df):,}")
+            col2.metric("Nivel Promedio", f"{nivel_prom:.2f} cm")
+            col3.metric("Nivel Máximo (Pico)", f"{nivel_max:.2f} cm")
+            col4.metric("Máx. Cambio en 1h", f"{max_var:.2f} cm" if not np.isnan(max_var) else "N/A")
 
-            # --- Gráfico de la serie de tiempo completa ---
-            st.subheader("📈 Serie de tiempo del nivel")
+            # --- Gráfico de Serie de Tiempo ---
+            st.subheader("📈 Serie de Tiempo del Nivel")
             st.line_chart(df.set_index("fecha")["nivel"])
 
-            # --- NUEVA SECCIÓN: Análisis por Hora del Día ---
+            # --- Análisis por Hora ---
             st.markdown("---")
-            st.subheader("🕒 Análisis del comportamiento diario (Nivel promedio por hora)")
-            
+            st.subheader("🕒 Patrón Diario (Promedio por Hora)")
             df["hora"] = df["fecha"].dt.hour
             promedio_hora = df.groupby("hora")["nivel"].mean().reset_index()
 
-            fig, ax = plt.subplots(figsize=(10, 3.5))
-            ax.plot(promedio_hora["hora"], promedio_hora["nivel"], marker="o", color="darkcyan", linewidth=2)
+            fig, ax = plt.subplots(figsize=(10, 3))
+            ax.plot(promedio_hora["hora"], promedio_hora["nivel"], marker="o", color="teal", linewidth=2)
             ax.set_xlabel("Hora del Día (0 - 23 hrs)")
-            ax.set_ylabel("Nivel Promedio (cm)")
+            ax.set_ylabel("Nivel (cm)")
             ax.set_xticks(range(0, 24, 2))
             ax.grid(True, linestyle="--", alpha=0.5)
             st.pyplot(fig)
 
-            st.info("💡 **Observación clave:** Se identifica un valle de nivel mínimo entre las **6:00 y las 12:00 hrs**, retomando la tendencia promedio durante las horas de la tarde.")
-
-            # --- Ubicación en Mapa ---
+            # --- Galería y Ubicación Corregida ---
             st.markdown("---")
-            st.subheader("📍 Ubicación de la estación")
-            st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
+            col_mapa, col_fotos = st.columns([1, 1])
 
-            # --- Tablas de datos y descarga ---
-            with st.expander("📄 Ver tabla de datos completos"):
+            with col_mapa:
+                st.subheader("📍 Ubicación Real de la Estación")
+                st.map(pd.DataFrame({"lat": [LAT_DEFECTO], "lon": [LON_DEFECTO]}), zoom=12)
+                st.caption("Coordenadas: Puerto Triunfo, Antioquia (5.9781, -74.7291)")
+
+            with col_fotos:
+                st.subheader("📷 Referencia Visual de la Zona")
+                st.image("https://www.cornare.gov.co/wp-content/uploads/2026/08/TECNOLOGIA-2-1024x768.jpg", caption="Estación Hidrométrica de Monitoreo - Red MARCO", use_container_width=True)
+
+            # --- Datos Crudos ---
+            with st.expander("📄 Exportar datos procesados"):
                 st.dataframe(df, use_container_width=True)
-
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Descargar datos (CSV)", csv, file_name=f"estacion_{codigo_estacion}.csv", mime="text/csv")
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Descargar CSV", csv, file_name=f"estacion_18_quebrada_doradal.csv", mime="text/csv")
 else:
-    st.info("Presiona el botón **🔍 Consultar** en la barra lateral para cargar el análisis.")
+    st.info("Usa el botón **🔍 Consultar** en la barra lateral para procesar la información.")
