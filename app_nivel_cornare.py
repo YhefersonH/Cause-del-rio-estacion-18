@@ -101,13 +101,13 @@ if consultar:
             else:
                 st.error(f"🔴 **ALERTA ROJA**: Riesgo alto de creciente con **{nivel_actual:.1f} cm** (Evacuación inmediata).")
 
-            # Tabla explicativa integrada dentro de la página
+            # Tabla explicativa integrada
             with st.expander("ℹ️ Ver significado de los niveles de riesgo hidrológico"):
                 st.markdown("""
                 | Estado | Nivel (cm) | Significado Físico | Acción Recomendada |
                 | :--- | :--- | :--- | :--- |
                 | 🟢 **Normal** | < 98 cm | Cauce en flujo habitual, sin presión sobre riberas. | Condiciones seguras. |
-                | 🟡 **Prevención** | 98 - 105 cm | Aumento por lluvias moderadas en la cuenca alta. | Monitoreo activo del comite de riesgo. |
+                | 🟡 **Prevención** | 98 - 105 cm | Aumento por lluvias moderadas en la cuenca alta. | Monitoreo activo del comité de riesgo. |
                 | 🟠 **Alerta** | 105 - 115 cm | Cauce lleno, próximo a puntos de desbordamiento. | Alistamiento preventivo para evacuación. |
                 | 🔴 **Emergencia** | > 115 cm | Desbordamiento activo sobre sectores bajos. | Evacuación inmediata hacia zonas altas. |
                 """)
@@ -167,16 +167,13 @@ if consultar:
                 st.map(pd.DataFrame({"lat": [LAT_DEFECTO], "lon": [LON_DEFECTO]}), zoom=12)
                 st.caption("Puerto Triunfo, Antioquia (Sector California)")
 
-           with col_fotos:
-    st.subheader("📷 Estación de Monitoreo")
-    # Imagen cargada directamente desde el servidor web institucional
-    url_foto = "https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp"
-    
-    try:
-        st.image(url_foto, caption="Sensor ultrasónico en Quebrada Doradal (Sector California)", use_container_width=True)
-    except Exception:
-        # Respaldo visual automático en caso de caída del servidor externo
-        st.info("📌 Estación Ultrasónica 18 — Quebrada Doradal, Puerto Triunfo (Sector California).")
+            with col_fotos:
+                st.subheader("📷 Estación de Monitoreo")
+                url_oficial = "https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp"
+                try:
+                    st.image(url_oficial, caption="Sensor ultrasónico en Quebrada Doradal", use_container_width=True)
+                except Exception:
+                    st.info("📌 Estación Ultrasónica 18 — Quebrada Doradal, Puerto Triunfo.")
 
             # 6. Descarga
             with st.expander("📄 Ver y descargar la tabla de datos"):
