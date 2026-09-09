@@ -155,12 +155,11 @@ if consultar:
                 st.caption("Coordenadas: Puerto Triunfo, Antioquia (5.9781, -74.7291)")
 
             with col_fotos:
-                st.subheader("📷 Estación Real 18 — Quebrada Doradal")
-                # Intenta cargar la imagen local si está guardada en el repositorio
+                st.subheader("📷 Estación Real 18 — Quebrada Doradal (California)")
                 try:
-                    st.image("estacion_18.jpg", caption="Estación ultrasónica de la Red MARCO en Quebrada Doradal", use_container_width=True)
+                    st.image("Quebrada_Doradal_California_1.webp", caption="Estación Ultrasónica 18 - Quebrada Doradal (Sector California, Puerto Triunfo)", use_container_width=True)
                 except Exception:
-                    st.image("https://www.cornare.gov.co/wp-content/uploads/2026/08/TECNOLOGIA-2-1024x768.jpg", caption="Estación de Monitoreo - Red MARCO", use_container_width=True)
+                    st.image("https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp", caption="Estación Ultrasónica 18 - Quebrada Doradal (Sector California, Puerto Triunfo)", use_container_width=True)
 
             # --- Exportar Datos ---
             with st.expander("📄 Exportar datos procesados"):
