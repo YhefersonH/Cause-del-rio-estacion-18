@@ -168,12 +168,10 @@ if consultar:
                 st.caption("Puerto Triunfo, Antioquia (Sector California)")
 
             with col_fotos:
-                st.subheader("📷 Estación de Monitoreo")
-                url_oficial = "https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp"
-                try:
-                    st.image(url_oficial, caption="Sensor ultrasónico en Quebrada Doradal", use_container_width=True)
-                except Exception:
-                    st.info("📌 Estación Ultrasónica 18 — Quebrada Doradal, Puerto Triunfo.")
+                st.subheader("📷 Estación Real 18 — Quebrada Doradal (California)")
+                # La URL que te funcionó perfectamente conectada a tu repositorio
+                url_imagen_github = "https://raw.githubusercontent.com/YhefersonH/Cause-del-rio-estacion-18/main/Quebrada_Doradal_California_1.webp"
+                st.image(url_imagen_github, caption="Estación Ultrasónica 18 - Quebrada Doradal (Sector California, Puerto Triunfo)", use_container_width=True)
 
             # 6. Descarga
             with st.expander("📄 Ver y descargar la tabla de datos"):
