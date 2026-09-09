@@ -12,7 +12,6 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Coordenadas reales de Puerto Triunfo (Quebrada Doradal - Estación 18)
 LAT_DEFECTO = 5.9781
 LON_DEFECTO = -74.7291
 
@@ -20,9 +19,6 @@ API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
 st.set_page_config(page_title="Estación 18 — Quebrada Doradal", page_icon="🌊", layout="wide")
 
-# ------------------------------------------------------------------
-# Funciones de consulta
-# ------------------------------------------------------------------
 def obtener_serie_nivel(codigo_estacion, desde, hasta, calidad=1, timeout=30):
     url = f"{API_BASE_URL}/{codigo_estacion}/nivel"
     params = {"desde": desde, "hasta": hasta, "calidad": calidad}
@@ -54,9 +50,6 @@ def obtener_todas_las_paginas(datos_json, timeout=30):
         siguiente_url = pagina.get("next")
     return registros
 
-# ------------------------------------------------------------------
-# Sidebar
-# ------------------------------------------------------------------
 st.sidebar.header("Parámetros de consulta")
 nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Y Apellido")
 codigo_estacion = st.sidebar.text_input("Código de estación", "18")
@@ -87,19 +80,15 @@ if consultar:
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
 
-            # --- Cálculos avanzados ---
             nivel_actual = df["nivel"].iloc[-1]
             nivel_max = df["nivel"].max()
             nivel_prom = df["nivel"].mean()
             
-            # Tasa de variación por hora (diferencia con 60 minutos atrás)
             df["variacion_1h"] = df["nivel"].diff(60)
             var_actual = df["variacion_1h"].iloc[-1] if len(df) > 60 else 0.0
 
-            # Desviación estándar móvil (ventana de 6 horas / 360 minutos)
             df["volatilidad_6h"] = df["nivel"].rolling(window=360, min_periods=1).std()
 
-            # --- MÓDULO 1: Semáforo de Alerta ---
             st.markdown("### 🚨 Estado de Alerta de la Quebrada")
             if nivel_actual < 98.0:
                 st.success(f"🟢 **NIVEL NORMAL**: El cauce se encuentra en {nivel_actual:.2f} cm (Sin riesgo de desbordamiento).")
@@ -108,14 +97,12 @@ if consultar:
             else:
                 st.error(f"🔴 **ALERTA ROJA**: Riesgo alto de creciente en {nivel_actual:.2f} cm.")
 
-            # --- MÓDULO 2: Panel de Métricas ---
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Lecturas procesadas", f"{len(df):,}")
             col2.metric("Nivel Promedio", f"{nivel_prom:.2f} cm")
             col3.metric("Nivel Máximo (Pico)", f"{nivel_max:.2f} cm")
             col4.metric("Tasa de Cambio (1h)", f"{var_actual:+.2f} cm/h", delta_color="inverse")
 
-            # --- Gráfico Principal con Volatilidad ---
             st.subheader("📈 Serie de Tiempo y Volatilidad Móvil (6h)")
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
 
@@ -131,7 +118,6 @@ if consultar:
             plt.tight_layout()
             st.pyplot(fig)
 
-            # --- MÓDULO 3: Patrón Diario ---
             st.markdown("---")
             st.subheader("🕒 Comportamiento Diario (Promedio por Hora)")
             df["hora"] = df["fecha"].dt.hour
@@ -145,7 +131,6 @@ if consultar:
             ax_h.grid(True, linestyle="--", alpha=0.5)
             st.pyplot(fig_hora)
 
-            # --- MÓDULO 4: Ubicación y Galería de la Estación ---
             st.markdown("---")
             col_mapa, col_fotos = st.columns([1, 1])
 
@@ -156,12 +141,8 @@ if consultar:
 
             with col_fotos:
                 st.subheader("📷 Estación Real 18 — Quebrada Doradal (California)")
-                try:
-                    st.image("Quebrada_Doradal_California_1.webp", caption="Estación Ultrasónica 18 - Quebrada Doradal (Sector California, Puerto Triunfo)", use_container_width=True)
-                except Exception:
-                    st.image("https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp", caption="Estación Ultrasónica 18 - Quebrada Doradal (Sector California, Puerto Triunfo)", use_container_width=True)
+                st.image("https://raw.githubusercontent.com/streamlit/app-examples/main/assets/images/placeholder.png", caption="Cargue la foto subiendo Quebrada_Doradal_California_1.webp a la raíz de su repositorio de GitHub.", use_container_width=True)
 
-            # --- Exportar Datos ---
             with st.expander("📄 Exportar datos procesados"):
                 st.dataframe(df, use_container_width=True)
                 csv = df.to_csv(index=False).encode("utf-8")
