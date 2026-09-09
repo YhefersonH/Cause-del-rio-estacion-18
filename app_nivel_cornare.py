@@ -87,41 +87,65 @@ if consultar:
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
 
-            # Métricas avanzadas
+            # --- Cálculos avanzados ---
+            nivel_actual = df["nivel"].iloc[-1]
             nivel_max = df["nivel"].max()
-            nivel_min = df["nivel"].min()
             nivel_prom = df["nivel"].mean()
             
-            # Cálculo de la máxima variación en 1 hora
-            df["variacion_1h"] = df["nivel"].diff(60).abs()
-            max_var = df["variacion_1h"].max()
+            # Tasa de variación por hora (diferencia con 60 minutos atrás)
+            df["variacion_1h"] = df["nivel"].diff(60)
+            var_actual = df["variacion_1h"].iloc[-1] if len(df) > 60 else 0.0
 
-            # --- Panel de Métricas ---
+            # Desviación estándar móvil (ventana de 6 horas / 360 minutos)
+            df["volatilidad_6h"] = df["nivel"].rolling(window=360, min_periods=1).std()
+
+            # --- MÓDULO 1: Semáforo de Alerta ---
+            st.markdown("### 🚨 Estado de Alerta de la Quebrada")
+            if nivel_actual < 98.0:
+                st.success(f"🟢 **NIVEL NORMAL**: El cauce se encuentra en {nivel_actual:.2f} cm (Sin riesgo de desbordamiento).")
+            elif 98.0 <= nivel_actual < 105.0:
+                st.warning(f"🟡 **ALERTA AMARILLA**: Nivel elevado en {nivel_actual:.2f} cm. Se recomienda monitoreo continuo.")
+            else:
+                st.error(f"🔴 **ALERTA ROJA**: Riesgo alto de creciente en {nivel_actual:.2f} cm.")
+
+            # --- MÓDULO 2: Panel de Métricas ---
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Lecturas procesadas", f"{len(df):,}")
             col2.metric("Nivel Promedio", f"{nivel_prom:.2f} cm")
             col3.metric("Nivel Máximo (Pico)", f"{nivel_max:.2f} cm")
-            col4.metric("Máx. Cambio en 1h", f"{max_var:.2f} cm" if not np.isnan(max_var) else "N/A")
+            col4.metric("Tasa de Cambio (1h)", f"{var_actual:+.2f} cm/h", delta_color="inverse")
 
-            # --- Gráfico de Serie de Tiempo ---
-            st.subheader("📈 Serie de Tiempo del Nivel")
-            st.line_chart(df.set_index("fecha")["nivel"])
+            # --- Gráfico Principal con Volatilidad ---
+            st.subheader("📈 Serie de Tiempo y Volatilidad Móvil (6h)")
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
 
-            # --- Análisis por Hora ---
+            ax1.plot(df["fecha"], df["nivel"], color="steelblue", linewidth=1)
+            ax1.set_ylabel("Nivel (cm)")
+            ax1.grid(True, linestyle="--", alpha=0.5)
+
+            ax2.plot(df["fecha"], df["volatilidad_6h"], color="darkorange", linewidth=1)
+            ax2.set_ylabel("Volatilidad (Std 6h)")
+            ax2.set_xlabel("Fecha")
+            ax2.grid(True, linestyle="--", alpha=0.5)
+
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            # --- MÓDULO 3: Patrón Diario ---
             st.markdown("---")
-            st.subheader("🕒 Patrón Diario (Promedio por Hora)")
+            st.subheader("🕒 Comportamiento Diario (Promedio por Hora)")
             df["hora"] = df["fecha"].dt.hour
             promedio_hora = df.groupby("hora")["nivel"].mean().reset_index()
 
-            fig, ax = plt.subplots(figsize=(10, 3))
-            ax.plot(promedio_hora["hora"], promedio_hora["nivel"], marker="o", color="teal", linewidth=2)
-            ax.set_xlabel("Hora del Día (0 - 23 hrs)")
-            ax.set_ylabel("Nivel (cm)")
-            ax.set_xticks(range(0, 24, 2))
-            ax.grid(True, linestyle="--", alpha=0.5)
-            st.pyplot(fig)
+            fig_hora, ax_h = plt.subplots(figsize=(10, 2.8))
+            ax_h.plot(promedio_hora["hora"], promedio_hora["nivel"], marker="o", color="teal", linewidth=2)
+            ax_h.set_xlabel("Hora del Día (0 - 23 hrs)")
+            ax_h.set_ylabel("Nivel (cm)")
+            ax_h.set_xticks(range(0, 24, 2))
+            ax_h.grid(True, linestyle="--", alpha=0.5)
+            st.pyplot(fig_hora)
 
-            # --- Galería y Ubicación Corregida ---
+            # --- MÓDULO 4: Ubicación y Galería de la Estación ---
             st.markdown("---")
             col_mapa, col_fotos = st.columns([1, 1])
 
@@ -131,13 +155,17 @@ if consultar:
                 st.caption("Coordenadas: Puerto Triunfo, Antioquia (5.9781, -74.7291)")
 
             with col_fotos:
-                st.subheader("📷 Referencia Visual de la Zona")
-                st.image("https://www.cornare.gov.co/wp-content/uploads/2026/08/TECNOLOGIA-2-1024x768.jpg", caption="Estación Hidrométrica de Monitoreo - Red MARCO", use_container_width=True)
+                st.subheader("📷 Estación Real 18 — Quebrada Doradal")
+                # Intenta cargar la imagen local si está guardada en el repositorio
+                try:
+                    st.image("estacion_18.jpg", caption="Estación ultrasónica de la Red MARCO en Quebrada Doradal", use_container_width=True)
+                except Exception:
+                    st.image("https://www.cornare.gov.co/wp-content/uploads/2026/08/TECNOLOGIA-2-1024x768.jpg", caption="Estación de Monitoreo - Red MARCO", use_container_width=True)
 
-            # --- Datos Crudos ---
+            # --- Exportar Datos ---
             with st.expander("📄 Exportar datos procesados"):
                 st.dataframe(df, use_container_width=True)
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Descargar CSV", csv, file_name=f"estacion_18_quebrada_doradal.csv", mime="text/csv")
+                st.download_button("⬇️ Descargar CSV", csv, file_name="estacion_18_quebrada_doradal.csv", mime="text/csv")
 else:
     st.info("Usa el botón **🔍 Consultar** en la barra lateral para procesar la información.")
