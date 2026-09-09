@@ -85,22 +85,39 @@ if consultar:
             nivel_max = df["nivel"].max()
             nivel_min = df["nivel"].min()
             nivel_prom = df["nivel"].mean()
+            
+            # Cambio en la última hora
+            df["variacion_1h"] = df["nivel"].diff(60)
+            var_actual = df["variacion_1h"].iloc[-1] if len(df) > 60 else 0.0
 
             # 1. Semáforo
             st.markdown("### 🚨 Estado Actual del Río")
             if nivel_actual < 98.0:
-                st.success(f"🟢 **NIVEL NORMAL**: El río está en **{nivel_actual:.1f} cm** (Sin riesgo).")
+                st.success(f"🟢 **NIVEL NORMAL**: El río está en **{nivel_actual:.1f} cm** (Sin riesgo de desbordamiento).")
             elif 98.0 <= nivel_actual < 105.0:
-                st.warning(f"🟡 **ALERTA AMARILLA**: El río subió a **{nivel_actual:.1f} cm**.")
+                st.warning(f"🟡 **ALERTA AMARILLA**: El río subió a **{nivel_actual:.1f} cm** (Monitoreo continuo).")
+            elif 105.0 <= nivel_actual < 115.0:
+                st.warning(f"🟠 **ALERTA NARANJA**: El río alcanzó **{nivel_actual:.1f} cm** (Preparación para evacuación).")
             else:
-                st.error(f"🔴 **ALERTA ROJA**: Riesgo de creciente con **{nivel_actual:.1f} cm**.")
+                st.error(f"🔴 **ALERTA ROJA**: Riesgo alto de creciente con **{nivel_actual:.1f} cm** (Evacuación inmediata).")
 
-            # 2. Métricas fáciles de entender
+            # Tabla explicativa integrada dentro de la página
+            with st.expander("ℹ️ Ver significado de los niveles de riesgo hidrológico"):
+                st.markdown("""
+                | Estado | Nivel (cm) | Significado Físico | Acción Recomendada |
+                | :--- | :--- | :--- | :--- |
+                | 🟢 **Normal** | < 98 cm | Cauce en flujo habitual, sin presión sobre riberas. | Condiciones seguras. |
+                | 🟡 **Prevención** | 98 - 105 cm | Aumento por lluvias moderadas en la cuenca alta. | Monitoreo activo del comite de riesgo. |
+                | 🟠 **Alerta** | 105 - 115 cm | Cauce lleno, próximo a puntos de desbordamiento. | Alistamiento preventivo para evacuación. |
+                | 🔴 **Emergencia** | > 115 cm | Desbordamiento activo sobre sectores bajos. | Evacuación inmediata hacia zonas altas. |
+                """)
+
+            # 2. Métricas principales
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Mediciones tomadas", f"{len(df):,}")
+            col1.metric("Lecturas Tomadas", f"{len(df):,}")
             col2.metric("Nivel Promedio", f"{nivel_prom:.1f} cm")
-            col3.metric("Nivel Mínimo", f"{nivel_min:.1f} cm")
-            col4.metric("Nivel Máximo (Pico)", f"{nivel_max:.1f} cm")
+            col3.metric("Nivel Mínimo / Máximo", f"{nivel_min:.1f} / {nivel_max:.1f} cm")
+            col4.metric("Tendencia (Última hora)", f"{var_actual:+.1f} cm/h", delta_color="inverse")
 
             st.markdown("---")
 
@@ -108,22 +125,22 @@ if consultar:
             col_g1, col_g2 = st.columns(2)
 
             with col_g1:
-                st.subheader("📈 ¿Cómo cambió el nivel con los días?")
+                st.subheader("📈 Comportamiento en los Días Analizados")
                 st.line_chart(df.set_index("fecha")["nivel"], height=250)
 
             with col_g2:
-                st.subheader("📊 ¿En qué nivel estuvo casi siempre?")
+                st.subheader("📊 Frecuencia de Niveles (Histograma)")
                 fig_hist, ax_h = plt.subplots(figsize=(5, 3))
                 ax_h.hist(df["nivel"], bins=15, color="skyblue", edgecolor="steelblue")
                 ax_h.set_xlabel("Nivel (cm)")
-                ax_h.set_ylabel("Cantidad de veces")
+                ax_h.set_ylabel("Frecuencia (Horas)")
                 ax_h.grid(True, linestyle="--", alpha=0.4)
                 st.pyplot(fig_hist)
 
             st.markdown("---")
 
-            # 4. Patrón por hora
-            st.subheader("🕒 ¿A qué hora del día sube o baja el agua?")
+            # 4. Patrón por hora explicado
+            st.subheader("🕒 ¿A qué hora sube o baja el río?")
             df["hora"] = df["fecha"].dt.hour
             promedio_hora = df.groupby("hora")["nivel"].mean().reset_index()
 
@@ -135,7 +152,11 @@ if consultar:
             ax_p.grid(True, linestyle="--", alpha=0.5)
             st.pyplot(fig_hora)
 
-            st.info("💡 **Dato clave:** En las mañanas (6:00 AM a 12:00 PM) el río alcanza su nivel más bajo y en la tarde recupera su altura habitual.")
+            col_inf1, col_inf2 = st.columns(2)
+            with col_inf1:
+                st.info("📉 **Bajada Matutina (6 AM - 12 PM):** El nivel baja hasta su punto mínimo debido a la falta de precipitaciones durante la madrugada en la montaña.")
+            with col_inf2:
+                st.info("📈 **Recuperación Vespertina (12 PM - 6 PM):** El río vuelve a subir impulsado por las lluvias de la tarde en la cuenca alta.")
 
             # 5. Ubicación y Foto
             st.markdown("---")
