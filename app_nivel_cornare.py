@@ -167,10 +167,16 @@ if consultar:
                 st.map(pd.DataFrame({"lat": [LAT_DEFECTO], "lon": [LON_DEFECTO]}), zoom=12)
                 st.caption("Puerto Triunfo, Antioquia (Sector California)")
 
-            with col_fotos:
-                st.subheader("📷 Estación de Monitoreo")
-                url_oficial = "https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp"
-                st.image(url_oficial, caption="Sensor ultrasónico en Quebrada Doradal", use_container_width=True)
+           with col_fotos:
+    st.subheader("📷 Estación de Monitoreo")
+    # Imagen cargada directamente desde el servidor web institucional
+    url_foto = "https://marco.cornare.gov.co/media/estaciones/Quebrada_Doradal_California_1.webp"
+    
+    try:
+        st.image(url_foto, caption="Sensor ultrasónico en Quebrada Doradal (Sector California)", use_container_width=True)
+    except Exception:
+        # Respaldo visual automático en caso de caída del servidor externo
+        st.info("📌 Estación Ultrasónica 18 — Quebrada Doradal, Puerto Triunfo (Sector California).")
 
             # 6. Descarga
             with st.expander("📄 Ver y descargar la tabla de datos"):
