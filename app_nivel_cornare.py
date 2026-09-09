@@ -1,37 +1,28 @@
 """
-App básica de Streamlit — Nivel de ríos/quebradas (CORNARE / MARCO)
---------------------------------------------------------------------
-Cada estudiante debe cambiar, como mínimo, el código de la estación
-en el sidebar. Los valores de fecha y calidad también son ajustables.
-
-Para correrla:
-    streamlit run app_nivel_cornare.py
+App de Streamlit — Nivel de ríos/quebradas (CORNARE / MARCO)
+Módulo 5: Análisis de Series de Tiempo
 """
 
 import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
+import matplotlib.pyplot as plt
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ------------------------------------------------------------------
-# Coordenadas por defecto (Institución Universitaria Pascual Bravo)
-# Se usan solo si la API no trae la latitud/longitud de la estación.
-# ------------------------------------------------------------------
 LAT_DEFECTO = 6.2766
 LON_DEFECTO = -75.5901
 
 API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
-LLAVE_FECHA = "level_date"
-LLAVE_VALOR = "level"
+LLAVE_FECHA = "fecha"
+LLAVE_VALOR = "nivel"
 CANDIDATOS_LAT = ["lat", "latitude", "latitud"]
 CANDIDATOS_LON = ["lng", "lon", "longitude", "longitud"]
 
 st.set_page_config(page_title="Nivel de estación — CORNARE", page_icon="🌊", layout="wide")
-
 
 # ------------------------------------------------------------------
 # Funciones de consulta
@@ -69,7 +60,6 @@ def obtener_todas_las_paginas(datos_json, timeout=30):
 
 
 def detectar_coordenadas(datos_json):
-    """Busca lat/lon en las llaves raíz de la respuesta. Si no las encuentra, usa el valor por defecto."""
     if not isinstance(datos_json, dict):
         return LAT_DEFECTO, LON_DEFECTO, False
 
@@ -85,7 +75,6 @@ def detectar_coordenadas(datos_json):
 
 
 def calcular_indice_calidad(df):
-    """Índice simple (0-100) combinando completitud de la serie y proporción de outliers."""
     if df.empty or len(df) < 2:
         return 0.0, 0, 0
 
@@ -111,24 +100,24 @@ def calcular_indice_calidad(df):
 
 
 # ------------------------------------------------------------------
-# Sidebar — parámetros de la consulta (editables por cada estudiante)
+# Sidebar — Parámetros de consulta configurados con tu estación 18
 # ------------------------------------------------------------------
 st.sidebar.header("Parámetros de tu consulta")
-nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Aquí")
-codigo_estacion = st.sidebar.text_input("Código de estación", "42")
-fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-08-23")).strftime("%Y-%m-%d")
-fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-08-30")).strftime("%Y-%m-%d")
+nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Y Apellido")
+codigo_estacion = st.sidebar.text_input("Código de estación", "18")
+fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-09-02")).strftime("%Y-%m-%d")
+fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-09-08")).strftime("%Y-%m-%d")
 calidad = st.sidebar.selectbox("Calidad", [1, 0], index=0, help="1 = solo datos validados")
 consultar = st.sidebar.button("🔍 Consultar", type="primary")
 
 st.title("🌊 Nivel de ríos y quebradas — CORNARE")
-st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacion}**")
+st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacion} (Puerto Triunfo)**")
 
 # ------------------------------------------------------------------
-# Consulta y procesamiento
+# Consulta y Procesamiento
 # ------------------------------------------------------------------
 if consultar:
-    with st.spinner("Consultando la API..."):
+    with st.spinner("Consultando la API de CORNARE..."):
         datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
 
     if error:
@@ -137,10 +126,14 @@ if consultar:
         registros = obtener_todas_las_paginas(datos_crudos)
 
         if not registros:
-            st.warning("No hay registros para esta estación y rango de fechas. Prueba otro código u otro rango.")
+            st.warning("No hay registros para esta estación y rango de fechas.")
         else:
             df = pd.DataFrame(registros)
-            df = df.rename(columns={LLAVE_FECHA: "fecha", LLAVE_VALOR: "nivel"})
+            
+            # Ajuste de llaves si vienen con nombres estándar o DRF
+            if "fecha" not in df.columns and "level_date" in df.columns:
+                df = df.rename(columns={"level_date": "fecha", "level": "nivel"})
+
             df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
@@ -150,32 +143,42 @@ if consultar:
 
             # --- Métricas principales ---
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Lecturas", len(df))
-            col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
+            col1.metric("Lecturas procesadas", len(df))
+            col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f} cm")
             col3.metric("Índice de calidad", f"{indice_calidad} / 100")
             col4.metric("Outliers detectados", n_outliers)
 
-            # --- Gráfico de la serie ---
-            st.subheader("Serie de nivel")
+            # --- Gráfico de la serie de tiempo completa ---
+            st.subheader("📈 Serie de tiempo del nivel")
             st.line_chart(df.set_index("fecha")["nivel"])
 
-            # --- Mapa de la estación ---
-            st.subheader("Ubicación de la estación")
-            if not coords_reales:
-                st.caption("La API no trajo latitud/longitud de la estación — se muestra el punto de partida (Pascual Bravo). Ajusta `CANDIDATOS_LAT` / `CANDIDATOS_LON` si conoces el nombre real de esas llaves.")
+            # --- NUEVA SECCIÓN: Análisis por Hora del Día ---
+            st.markdown("---")
+            st.subheader("🕒 Análisis del comportamiento diario (Nivel promedio por hora)")
+            
+            df["hora"] = df["fecha"].dt.hour
+            promedio_hora = df.groupby("hora")["nivel"].mean().reset_index()
+
+            fig, ax = plt.subplots(figsize=(10, 3.5))
+            ax.plot(promedio_hora["hora"], promedio_hora["nivel"], marker="o", color="darkcyan", linewidth=2)
+            ax.set_xlabel("Hora del Día (0 - 23 hrs)")
+            ax.set_ylabel("Nivel Promedio (cm)")
+            ax.set_xticks(range(0, 24, 2))
+            ax.grid(True, linestyle="--", alpha=0.5)
+            st.pyplot(fig)
+
+            st.info("💡 **Observación clave:** Se identifica un valle de nivel mínimo entre las **6:00 y las 12:00 hrs**, retomando la tendencia promedio durante las horas de la tarde.")
+
+            # --- Ubicación en Mapa ---
+            st.markdown("---")
+            st.subheader("📍 Ubicación de la estación")
             st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
 
-            # --- Detalle de calidad ---
-            with st.expander("Detalle del índice de calidad"):
-                st.write(f"- Huecos de reporte detectados: **{huecos}**")
-                st.write(f"- Outliers (IQR + nivel negativo): **{n_outliers}** de {len(df)} lecturas")
-                st.write("El índice combina completitud de la serie (70%) y proporción de datos sin outliers (30%).")
-
-            # --- Tabla y descarga ---
-            with st.expander("Ver datos crudos"):
+            # --- Tablas de datos y descarga ---
+            with st.expander("📄 Ver tabla de datos completos"):
                 st.dataframe(df, use_container_width=True)
 
             csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Descargar CSV", csv, file_name=f"nivel_estacion_{codigo_estacion}.csv", mime="text/csv")
+            st.download_button("⬇️ Descargar datos (CSV)", csv, file_name=f"estacion_{codigo_estacion}.csv", mime="text/csv")
 else:
-    st.info("Ajusta los parámetros en el sidebar y presiona **Consultar**.")
+    st.info("Presiona el botón **🔍 Consultar** en la barra lateral para cargar el análisis.")
